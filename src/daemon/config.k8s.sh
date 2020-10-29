@@ -8,6 +8,7 @@ function get_admin_key {
 }
 
 function get_mon_config {
+  echo "USE get_mon_config FUNCTION in file config.k8s.sh" >> /hungdh9_test.txt
   # Get fsid from ceph.conf
   local fsid
   fsid=$(ceph-conf --lookup fsid -c /etc/ceph/"${CLUSTER}".conf)

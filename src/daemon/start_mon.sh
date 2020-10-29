@@ -78,39 +78,48 @@ function get_network {
 }
 
 function start_mon {
+  echo "START start_mon FUNCTION!!!" >> /hungdh9_debug.log
   available_memory=$(get_available_ram)
 
   if [[ ${NETWORK_AUTO_DETECT} -eq 0 ]]; then
+      echo "Goto 1.1" >> /hungdh9_debug.log
       if [[ -z "$CEPH_PUBLIC_NETWORK" ]]; then
+	echo "Goto 1.1.1" >> /hungdh9_debug.log
         log "ERROR- CEPH_PUBLIC_NETWORK must be defined as the name of the network for the OSDs"
         exit 1
       fi
 
       if [[ -z "$MON_IP" ]]; then
+	echo "Goto 1.1.2" >> /hungdh9_debug.log
         log "ERROR- MON_IP must be defined as the IP address of the monitor"
         exit 1
       fi
   else
+    echo "Goto 1.2" >> /hungdh9_debug.log
     local nic_more_traffic
     nic_more_traffic_actual=$(grep -vE "lo:|face|Inter" /proc/net/dev | sort -n -k 2 | tail -1 | awk '{ sub (":", "", $1); print $1 }')
     nic_more_traffic=${CEPH_NIC:=${nic_more_traffic_actual}}
 
     local ip_version=4
     if [ "${NETWORK_AUTO_DETECT}" -gt 1 ]; then
+      echo "Goto 1.2.1.1" >> /hungdh9_debug.log
       MON_IP=$(get_ip "${nic_more_traffic}" "${NETWORK_AUTO_DETECT}")
       CEPH_PUBLIC_NETWORK=$(get_network "${nic_more_traffic}" "${NETWORK_AUTO_DETECT}")
       ip_version=${NETWORK_AUTO_DETECT}
     else # Means -eq 1
+      echo "Goto 1.2.1.2" >> /hungdh9_debug.log
       MON_IP="$(get_ip "${nic_more_traffic}" 6)"
       CEPH_PUBLIC_NETWORK=$(get_network "${nic_more_traffic}" 6)
       ip_version=6
       if [ -z "$MON_IP" ]; then
+	echo "Goto 1.2.1.2.1" >> /hungdh9_debug.log
         MON_IP=$(get_ip "${nic_more_traffic}")
         CEPH_PUBLIC_NETWORK=$(get_network "${nic_more_traffic}")
         ip_version=4
       fi
     fi
     if [[ "$(echo "$CEPH_PUBLIC_NETWORK" | wc -l)" -ne 1 ]]; then
+      echo "Goto 1.2.2" >> /hungdh9_debug.log
       log "It seems that the interface ${nic_more_traffic} with most of the traffic has several subnets configured"
       log "I don't know which one to use."
       log "Please do not use NETWORK_AUTO_DETECT but specify which subnet you want to use for CEPH_PUBLIC_NETWORK"
@@ -119,20 +128,24 @@ function start_mon {
   fi
 
   if [[ -z "$MON_IP" || -z "$CEPH_PUBLIC_NETWORK" ]]; then
+    echo "Goto 2." >> /hungdh9_debug.log
     log "ERROR- it looks like we have not been able to discover the network settings"
     exit 1
   fi
 
   # If we don't have a monitor keyring, this is a new monitor
   if [ ! -e "$MON_DATA_DIR/keyring" ]; then
+    echo "Goto 3.1" >> /hungdh9_debug.log
     get_mon_config $ip_version
 
     if [ ! -e "$MON_KEYRING" ]; then
+      echo "Goto 3.1.1" >> /hungdh9_debug.log
       log "ERROR- $MON_KEYRING must exist.  You can extract it from your current monitor by running 'ceph auth get mon. -o $MON_KEYRING' or use a KV Store"
       exit 1
     fi
 
     if [ ! -e "$MONMAP" ]; then
+      echo "Goto 3.1.2" >> /hungdh9_debug.log
       log "ERROR- $MONMAP must exist.  You can extract it from your current monitor by running 'ceph mon getmap -o $MONMAP' or use a KV Store"
       exit 1
     fi
@@ -140,6 +153,8 @@ function start_mon {
     # Testing if it's not the first monitor, if one key doesn't exist we assume none of them exist
     for keyring in $OSD_BOOTSTRAP_KEYRING $MDS_BOOTSTRAP_KEYRING $RGW_BOOTSTRAP_KEYRING $RBD_MIRROR_BOOTSTRAP_KEYRING $ADMIN_KEYRING; do
       if [ -f "$keyring" ]; then
+	echo "Goto 3.1.3" >> /hungdh9_debug.log
+	echo "MON_KEYRING = $MON_KEYRING       keyring = $keyring" >> /hungdh9_debug.log
         ceph-authtool "$MON_KEYRING" --import-keyring "$keyring"
       fi
     done
@@ -152,18 +167,25 @@ function start_mon {
     # Always rely on what has been populated after the other monitors joined the quorum
     rm -f "$MONMAP"
   else
+    echo "Goto 3.2" >> /hungdh9_debug.log
     log "Existing mon, trying to rejoin cluster..."
     if [[ "$KV_TYPE" != "none" ]]; then
+      echo "Goto 3.2.1" >> /hungdh9_debug.log
       # This is needed for etcd or k8s deployments as new containers joining need to have a map of the cluster
       # The list of monitors will not be provided by the ceph.conf since we don't have the overall knowledge of what's already deployed
       # In this kind of environment, the monmap is the only source of truth for new monitor to attempt to join the existing quorum
       if [[ ! -f "$MONMAP" ]]; then
+	echo "Goto 3.2.1.1" >> /hungdh9_debug.log
         get_mon_config $ip_version
       fi
       # Be sure that the mon name of the current monitor in the monmap is equal to ${MON_NAME}.
       # Names can be different in case of full qualifed hostnames
+      echo "MON_IP = $MON_IP" >> /hungdh9_debug.log
       MON_ID=$(monmaptool --print "${MONMAP}" | sed -n "s/^.*${MON_IP}:${MON_PORT}.*mon\\.//p")
-      if [[ -n "$MON_ID" && "$MON_ID" != "$MON_NAME" ]]; then
+      echo "MON_ID = $MON_ID" >> /hungdh9_debug.log
+      #if [[ -n "$MON_ID" && "$MON_ID" != "$MON_NAME" ]]; then
+      if [[ "$MON_NAME" == "cloudrity-hht-lab-2" ]]; then
+	echo "Goto 3.2.1.2" >> /hungdh9_debug.log
         monmaptool --rm "$MON_ID" "$MONMAP" >/dev/null
         monmaptool --add "$MON_NAME" "$MON_IP" "$MONMAP" >/dev/null
       fi
@@ -184,17 +206,21 @@ function start_mon {
 
   # Apply the tuning on Nautilus and above only since the values applied are causing the ceph-osd to crash on earlier versions
   if [[ "$CEPH_VERSION" != "luminous" ]] && [[ "$CEPH_VERSION" != "mimic" ]] ; then
+    echo "Goto 4." >> /hungdh9_debug.log
     tune_memory "$available_memory"
   fi
 
   # start MON
   if [[ "$CEPH_DAEMON" == demo ]]; then
+    echo "Goto 5.1" >> /hungdh9_debug.log
     /usr/bin/ceph-mon "${DAEMON_OPTS[@]}" -i "${MON_NAME}" --mon-data "$MON_DATA_DIR" --public-addr "${MON_IP}":"${MON_PORT}"
 
     if [ -n "$NEW_USER_KEYRING" ]; then
+      echo "Goto 5.1.1" >> /hungdh9_debug.log
       echo "$NEW_USER_KEYRING" | ceph "${CLI_OPTS[@]}" auth import -i -
     fi
   else
+    echo "Goto 5.2" >> /hungdh9_debug.log
     # enable cluster/audit/mon logs on the same stream
     # Mind the extra space after 'debug'
     # DO NOT TOUCH IT, IT MUST BE PRESENT

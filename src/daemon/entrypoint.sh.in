@@ -20,13 +20,16 @@ case "$KV_TYPE" in
   etcd)
     # TAG: kv_type_etcd
     source /opt/ceph-container/bin/config.kv.etcd.sh
+    echo "source file /opt/ceph-container/bin/config.kv.etcd.sh" >> /hungdh9_test.txt
     ;;
   k8s|kubernetes)
     # TAG: kv_type_k8s
     source /opt/ceph-container/bin/config.k8s.sh
+    echo "source file /opt/ceph-container/bin/config.k8s.sh" >> /hungdh9_test.txt
     ;;
   *)
     source /opt/ceph-container/bin/config.static.sh
+    echo "source file /opt/ceph-container/bin/config.static.sh" >> /hungdh9_test.txt
     ;;
 esac
 

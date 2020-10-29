@@ -11,6 +11,7 @@ function get_admin_key {
 }
 
 function get_mon_config {
+  echo "USE get_mon_config FUNCTION in file config.static.sh" >> /hungdh9_test.txt
   # IPv4 is the default unless we specify it
   IP_LEVEL=${1:-4}
 

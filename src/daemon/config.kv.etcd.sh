@@ -5,6 +5,7 @@ sed -r "s/@CLUSTER@/${CLUSTER:-ceph}/g" \
     /etc/confd/conf.d/ceph.conf.toml.in > /etc/confd/conf.d/ceph.conf.toml
 
 function get_mon_config {
+  echo "USE get_mon_config FUNCTION in file config.kv.etcd.sh" >> /hungdh9_test.txt
   # Make sure root dirs are present for confd to work
   for dir in auth global mon mds osd client; do
     etcdctl "${ETCDCTL_OPTS[@]}" "${KV_TLS[@]}" mkdir "${CLUSTER_PATH}"/"$dir" > /dev/null 2>&1  || log "'$dir' key already exists"
